@@ -1,0 +1,123 @@
+---
+title: "Portfolio 3"
+author: "Kazik Lewandowski"
+date: "11/7/2019"
+output: html_document
+---
+
+```{r setup}
+#knitr::opts_chunk$set(echo = TRUE)
+#load packages
+pacman::p_load(tidyverse, pastecs, WRS2, LSAfun, stringr)
+install.packages("ggplot2")
+library("ggplot2")
+
+```
+
+## Correlational Section
+Run correlational analysis investing three word properties and the word-by-word reading time: word length, word frequency, and word number. 
+
+```{r load data}
+#load data and create data frame from multiple csv files
+files <- list.files(path = "data", pattern = ".csv",  full.names = T)   
+data <- lapply(files, read_csv) %>% plyr::rbind.fill()
+#load MRC data base for word frequency analysis
+MRC <- read.csv("MRC_database.csv")
+```
+
+```{r}
+#remove puncuation and capitlization
+data$Stimulus <- str_replace_all(data$Stimulus, "[:punct:]","")
+data$Version <- str_replace_all(data$Version, "[:punct:]","")
+#change words to uppercase in order to match the MRC database
+data$Stimulus <- toupper(data$Stimulus)
+#create new column with word length
+data$word_length <- str_length(data$Stimulus)
+#determine word order 
+data$word_number <- data$X1
+#change colmun name of stimulus to match MRC database
+data$word <- data$Stimulus
+df <- merge(MRC, data, by = "word")
+
+```
+
+```{r}
+#histogram of untransformed Reaction time data
+hist(df$Reaction_time) #therefore needs to be transformed
+
+#create new column with z values to be filtered out
+df$z <- (df$Reaction_time - mean(df$Reaction_time))/sd(df$Reaction_time)
+#filter out z values
+df <- filter(df, z > -3 & z < 3)
+#log transformation
+df <- df %>% mutate(log_rt = log(df$Reaction_time))
+#histogram of data after log transformation looks much nicer                   
+hist(df$log_rt)
+#still need to check for normality of log data
+
+```
+
+```{r}
+#Correlation between reading time and word frequency
+#Check if the data are normally distributed
+#reaction times
+shapiro.test(df$log_rt)
+qplot( sample = log_rt, data = df)
+#word frequency
+shapiro.test(df$kf_freq)
+qplot( sample = kf_freq, data = df)
+
+
+#use Pearson's correlation test, since we are comparing 2 continuos variables 
+cor.test(df$kf_freq, df$log_rt, method = "pearson")
+#visualize data with scatter plot
+ggplot(df, aes(x = kf_freq, y =log_rt)) + geom_point()
+
+```
+```{r}
+#Correlation between reading time and word length
+shapiro.test(df$word_length)
+qplot( sample = word_length, data = df)
+#use Pearson's correlation test, since we are comparing 2 continuos variables 
+cor.test(df$word_length, df$log_rt, method = "pearson")
+#visualize data with scatter plot
+ggplot(df, aes(x = word_length, y =log_rt)) + geom_point()
+```
+```{r}
+#Correlation between word number and reading time
+
+shapiro.test(df$word_number)
+qplot( sample = word_number, data = df)
+
+
+#use Pearson's correlation test, since we are comparing 2 continuos variables 
+cor.test(df$word_number, df$log_rt, method = "pearson")
+#visualize data with scatter plot
+ggplot(df, aes(x = word_number, y =log_rt)) + geom_point()
+
+```
+
+
+
+
+```{r} 
+#Part 2 semnatic analysis
+#filter salient words, and word that comes after
+dfsem <-  filter(df, word == "BUILDING"| word == "STREAM"| word_number == 107)
+#change the class to character
+dfsem$word <- as.character(dfsem$word)
+#group by which word was viewed and the condition
+dfsem %>% group_by(word, Version) %>% summarise(mean(log_rt))
+ggplot(dfsem, aes(x=word, y = log_rt)) + geom_bar(stat='summary',fun.y = mean, width = .5)
+```
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
